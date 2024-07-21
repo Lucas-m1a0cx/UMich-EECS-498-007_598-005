@@ -330,7 +330,10 @@ def nn_train(
         # stored in the grads dictionary defined above.                         #
         #########################################################################
         # Replace "pass" statement with your code
-        
+        params['W1'] -= learning_rate * grads['W1']
+        params['W2'] -= learning_rate * grads['W2']
+        params['b1'] -= learning_rate * grads['b1']
+        params['b2'] -= learning_rate * grads['b2']
         #########################################################################
         #                             END OF YOUR CODE                          #
         #########################################################################
@@ -388,7 +391,8 @@ def nn_predict(
     # TODO: Implement this function; it should be VERY simple!                #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    scores = nn_forward_pass(params, X)[0]
+    y_pred = torch.max(scores, dim=1)[1]
     ###########################################################################
     #                              END OF YOUR CODE                           #
     ###########################################################################
@@ -422,7 +426,10 @@ def nn_get_search_params():
     # classifier.                                                             #
     ###########################################################################
     # Replace "pass" statement with your code
-    pass
+    learning_rates = [1e0, 95e-2, 90e-2]
+    hidden_sizes = [128, 256]
+    regularization_strengths = [1e-4, 3e-4, 5e-4]
+    learning_rate_decays = [0.95, 0.90, 0.85]
     ###########################################################################
     #                           END OF YOUR CODE                              #
     ###########################################################################
@@ -483,7 +490,25 @@ def find_best_net(
     # automatically like we did on the previous exercises.                      #
     #############################################################################
     # Replace "pass" statement with your code
-    pass
+    X_train, y_train, X_val, y_val = data_dict['X_train'], data_dict['y_train'], data_dict['X_val'], data_dict['y_val']
+    learning_rates, hidden_sizes, regularization_strengths, learning_rate_decays = get_param_set_fn() 
+    for lr in learning_rates:
+        for hs in hidden_sizes:
+            for reg in regularization_strengths:
+                for lr_decay in learning_rate_decays:
+                    net = TwoLayerNet(input_size=X_train.shape[1], hidden_size=hs, output_size=10)
+
+                    stats = net.train(X_train, y_train, X_val, y_val, num_iters=4000, batch_size=1000,
+                                      learning_rate=lr, learning_rate_decay=lr_decay, reg=reg)
+                    
+                    val_acc = stats['val_acc_history'][-1]
+
+                    if val_acc > best_val_acc:
+                        best_val_acc = val_acc
+                        best_net = net
+                        best_stat = stats
+    
+
     #############################################################################
     #                               END OF YOUR CODE                            #
     #############################################################################
