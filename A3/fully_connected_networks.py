@@ -40,7 +40,7 @@ class Linear(object):
         ######################################################################
         # Replace "pass" statement with your code
         x_train = x.shape[0]
-        t = x.view(x_train, -1)
+        t = x.reshape(x_train, -1)
         out = torch.mm(t, w) + b
         ######################################################################
         #                        END OF YOUR CODE                            #
@@ -71,7 +71,7 @@ class Linear(object):
         ##################################################
         # Replace "pass" statement with your code
         num_train = x.shape[0]
-        x_flattened = x.view(num_train, -1)
+        x_flattened = x.reshape(num_train, -1)
         dx = torch.mm(dout, w.t()).view(x.shape)
         dw = torch.mm(x_flattened.t(), dout)
         db = torch.sum(dout, dim=0)
