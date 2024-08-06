@@ -603,6 +603,7 @@ class CaptioningRNN(nn.Module):
         elif self.cell_type == 'attn':
             A = self.project_features(features.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
             h0, c0 = A.mean(dim=(2, 3)), A.mean(dim=(2, 3))
+            prev_c = c0
         words = self._start * images.new(N, 1).long()
         prev_h = h0
         for i in range(max_length):
@@ -613,7 +614,7 @@ class CaptioningRNN(nn.Module):
                 prev_h, prev_c = backbone.step_forward(words_embedded, prev_h, prev_c)
             elif self.cell_type == 'attn':
                 attn, attn_weights_all[:, i] = dot_product_attention(prev_h, A)
-                prev_h, prev_c = backbone.step_forward(word_embedding, prev_h, prev_c, attn)
+                prev_h, prev_c = backbone.step_forward(words_embedded, prev_h, prev_c, attn)
             scores = fc.forward(prev_h)
             words = scores.argmax(dim=1)
             captions[:, i] = words
