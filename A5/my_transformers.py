@@ -472,7 +472,8 @@ class LayerNormalization(nn.Module):
         # shift initializations with nn.Parameter                                #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        self.scale = nn.Parameter(torch.ones(emb_dim))
+        self.shift = nn.Parameter(torch.zeros(emb_dim))
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -499,7 +500,10 @@ class LayerNormalization(nn.Module):
         # the standard deviation.                                                #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        mean = x.mean(dim=-1, keepdim=True)
+        var = x.var(dim=-1, unbiased=False)
+        x_hat = (x - mean) / (var + self.epsilon).sqrt()
+        y = self.scale * x_hat + self.shift
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -515,7 +519,7 @@ class FeedForwardBlock(nn.Module):
         the input through stacked 2 MLPs and 1 ReLU layer. The forward pass has  
         following architecture:
         
-        linear - relu -linear
+        linear - relu - linear
         
         The input will have a shape of (N, K, M) where N is the batch size, K is 
         the sequence length and M is the embedding dimension. 
@@ -537,7 +541,10 @@ class FeedForwardBlock(nn.Module):
         # change?                                                                #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        self.fc1 = nn.Linear(inp_dim, hidden_dim_feedforward)
+        nn.init.xavier_uniform_(self.fc1.weight.data)
+        self.fc2 = nn.Linear(hidden_dim_feedforward, inp_dim)
+        nn.init.xavier_uniform_(self.fc2.weight.data)
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -559,7 +566,9 @@ class FeedForwardBlock(nn.Module):
         # no activation after the second MLP                                      #
         ###########################################################################
         # Replace "pass" statement with your code
-        pass
+        y = self.fc1.forward(x)
+        y = F.relu(y)
+        y = self.fc2.forward(y)
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -575,7 +584,7 @@ class EncoderBlock(nn.Module):
         This class implements the encoder block for the Transformer model, the 
         original paper used 6 of these blocks sequentially to train the final model. 
         Here, we will first initialize the required layers using the building  
-        blocks we have already  implemented, and then finally write the forward     
+        blocks we have already implemented, and then finally write the forward     
         pass using these initialized layers, residual connections and dropouts.        
         
         As shown in the Figure 1 of the paper attention is all you need
@@ -634,7 +643,10 @@ class EncoderBlock(nn.Module):
         # 4. A Dropout layer with given dropout parameter                        #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        self.MultiHead = MultiHeadAttention(num_heads, emb_dim, emb_dim // num_heads)
+        self.layerNorm = LayerNormalization(emb_dim)
+        self.feedForward = FeedForwardBlock(emb_dim, feedforward_dim)
+        self.dropout = nn.Dropout(dropout)
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -659,7 +671,13 @@ class EncoderBlock(nn.Module):
         # reference from the architecture written in the fucntion documentation. #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        y = self.MultiHead.forward(x, x, x) + x
+        y = self.layerNorm.forward(y)
+        y = self.dropout(y)
+        y = self.feedForward.forward(y) + y
+        y = self.layerNorm.forward(y)
+        y = self.dropout(y)
+
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
