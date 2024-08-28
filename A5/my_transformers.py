@@ -501,8 +501,8 @@ class LayerNormalization(nn.Module):
         ##########################################################################
         # Replace "pass" statement with your code
         mean = x.mean(dim=-1, keepdim=True)
-        var = x.var(dim=-1, unbiased=False)
-        x_hat = (x - mean) / (var + self.epsilon).sqrt()
+        std = x.std(dim=-1, keepdim=True, unbiased=False)
+        x_hat = (x - mean) / (std + self.epsilon)
         y = self.scale * x_hat + self.shift
         ##########################################################################
         #               END OF YOUR CODE                                         #
@@ -643,9 +643,10 @@ class EncoderBlock(nn.Module):
         # 4. A Dropout layer with given dropout parameter                        #
         ##########################################################################
         # Replace "pass" statement with your code
-        self.MultiHead = MultiHeadAttention(num_heads, emb_dim, emb_dim // num_heads)
-        self.layerNorm = LayerNormalization(emb_dim)
-        self.feedForward = FeedForwardBlock(emb_dim, feedforward_dim)
+        self.attn = MultiHeadAttention(num_heads, emb_dim, emb_dim // num_heads)
+        self.norm1 = LayerNormalization(emb_dim)
+        self.norm2 = LayerNormalization(emb_dim)
+        self.fc = FeedForwardBlock(emb_dim, feedforward_dim)
         self.dropout = nn.Dropout(dropout)
         ##########################################################################
         #               END OF YOUR CODE                                         #
@@ -671,13 +672,8 @@ class EncoderBlock(nn.Module):
         # reference from the architecture written in the fucntion documentation. #
         ##########################################################################
         # Replace "pass" statement with your code
-        y = self.MultiHead.forward(x, x, x) + x
-        y = self.layerNorm.forward(y)
-        y = self.dropout(y)
-        y = self.feedForward.forward(y) + y
-        y = self.layerNorm.forward(y)
-        y = self.dropout(y)
-
+        x = self.dropout(self.norm1(x + self.attn(x, x, x)))
+        y = self.dropout(self.norm2(x + self.fc(x)))
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -691,7 +687,7 @@ def get_subsequent_mask(seq):
     (N, K) where N is the batch size and K is the sequence length.
 
     args:
-        seq: a tensor of shape (N, K) where N is the batch sieze and K is the
+        seq: a tensor of shape (N, K) where N is the batch size and K is the
              length of the sequence
     return:
         mask: a tensor of shape (N, K, K) where N is the batch sieze and K is the
@@ -710,7 +706,8 @@ def get_subsequent_mask(seq):
     #                                                                             #
     ###############################################################################
     # Replace "pass" statement with your code
-    pass
+    N, K = seq.shape
+    mask = (1 - torch.tril(torch.ones(N, K, K, device=seq.device))).bool()
     ##############################################################################
     #               END OF YOUR CODE                                             #
     ##############################################################################
@@ -796,7 +793,13 @@ class DecoderBlock(nn.Module):
         ##########################################################################
 
         # Replace "pass" statement with your code
-        pass
+        self.attention_self = MultiHeadAttention(num_heads, emb_dim, emb_dim // num_heads)
+        self.attention_cross = MultiHeadAttention(num_heads, emb_dim, emb_dim // num_heads)
+        self.norm1 = LayerNormalization(emb_dim)
+        self.norm2 = LayerNormalization(emb_dim)
+        self.norm3 = LayerNormalization(emb_dim)
+        self.feed_forward = FeedForwardBlock(emb_dim, feedforward_dim)
+        self.dropout = nn.Dropout(dropout)
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -826,12 +829,13 @@ class DecoderBlock(nn.Module):
         # pass. Don't forget to apply the residual connections for different layers.
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        x = self.dropout(self.norm1(dec_inp + self.attention_self(dec_inp,dec_inp,dec_inp, mask)))
+        x = self.dropout(self.norm2(x + self.attention_cross(x,enc_inp,enc_inp)))
+        y = self.dropout(self.norm3(x + self.feed_forward(x)))
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
         return y
-
 
 class Encoder(nn.Module):
     def __init__(
@@ -940,7 +944,8 @@ def position_encoding_simple(K: int, M: int) -> Tensor:
     # times to create a tensor of the required output shape                      #
     ##############################################################################
     # Replace "pass" statement with your code
-    pass
+    y = torch.linspace(0, 1 - 1/K, steps= K)
+    y = y.repeat((1, M, 1)).permute(0, 2, 1)
     ##############################################################################
     #               END OF YOUR CODE                                             #
     ##############################################################################
@@ -968,7 +973,10 @@ def position_encoding_sinusoid(K: int, M: int) -> Tensor:
     # alternating sines and cosines along the embedding dimension M.             #
     ##############################################################################
     # Replace "pass" statement with your code
-    pass
+    pos = torch.arange(K).reshape(1, -1, 1)
+    dim = torch.arange(M).reshape(1, 1, -1)
+    phase = pos / (1e4 ** torch.div(dim, M, rounding_mode='floor'))
+    y = torch.where(dim.long() % 2 == 0, torch.sin(phase), torch.cos(phase))
     ##############################################################################
     #               END OF YOUR CODE                                             #
     ##############################################################################
@@ -996,9 +1004,9 @@ class Transformer(nn.Module):
         through shared nn.Embedding layer and then added to input positonal 
         encodings. Similarily, the target is passed through the same nn.Embedding
         layer and added to the target positional encodings. The only difference
-        is that we take last but one  value in the target. The summed 
+        is that we take last but one value in the target. The summed 
         inputs(look at the code for detials) are then sent through the encoder and  
-        decoder blocks  to get the  final output.
+        decoder blocks to get the final output.
         args:
             num_heads: int representing number of heads to be used in Encoder
                        and decoder
@@ -1018,7 +1026,7 @@ class Transformer(nn.Module):
         # name of this layer as self.emb_layer                                   #
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        self.emb_layer = nn.Embedding(vocab_len, emb_dim)
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
@@ -1072,7 +1080,10 @@ class Transformer(nn.Module):
         # Hint: the mask shape will depend on the Tensor ans_b
         ##########################################################################
         # Replace "pass" statement with your code
-        pass
+        enc_out = self.encoder(q_emb_inp)
+        mask = get_subsequent_mask(ans_b[:, :-1])
+        dec_out = self.decoder(a_emb_inp, enc_out, mask)
+        dec_out = dec_out.reshape(-1, dec_out.shape[-1])
         ##########################################################################
         #               END OF YOUR CODE                                         #
         ##########################################################################
